@@ -4,7 +4,7 @@ Date: Feb 6, 2024
 Author: Muhammad Adetunji
 """
 # importing necessary libraries
-import datetime, numpy
+import datetime
 import matplotlib.pyplot as plt
 
 
@@ -119,12 +119,12 @@ def getReturnedTransactions(sales: dict, returnals: list )->dict:
 
 
 
-def getTransactionsWithDate(filtered_sales_infos: dict, day_cutoff: int) -> dict:
+def getTransactionsWithDate(filtered_sales_infos: dict, day_cutoff: int):
     """
     gets the number of transactions before the desired date
     :param filtered_sales_infos: sales excluding the returned items.
     :param day_cutoff: day that we are keeping track of sales before and after of.
-    :return: int
+    :return:
     """
     # keeping track of the sales that happened before the day cutoff
     transactions_before = {}
@@ -467,13 +467,14 @@ def determineMostReturned(returns: dict, product_infos: dict, year, month):
             product_id = returns[trans_id]["product id"]
             product_price = product_infos[product_id]["price"]
             date_returned = returns[trans_id]["date"]
+            qty = returns[trans_id]["quantity"]
             date_returned = date_returned.split("-")
 
             day_returned = int(date_returned[2])
 
 
             if day_returned == current_day.day:
-                return_cost += 0.1 * product_price
+                return_cost += (product_price * qty) / 10
 
         # overwrite with the new cost and date i
         if return_cost > highest_return_cost:
@@ -532,7 +533,7 @@ def showMostReturned(most_returned_items: dict, date_most_returns: list, highest
         product_price = product_infos[prod_id]["price"]
         qty_returned = most_returned_items[prod_id]
 
-        return_cost = (product_price * qty_returned) * 0.1
+        return_cost = product_price * qty_returned / 10
         print(f"{prod_id:3} {product_name:20} {qty_returned:3} ${return_cost:10,.2f}")
 
 
@@ -577,6 +578,64 @@ def writeToFile(filename: str, quantities_sold: dict, product_infos: dict):
             qty = str(quantities_sold[prod_id])
             line = f"{prod_id:>3}#{product_name:<20}#{qty:>3}"
             file.write(f"{line}\n")
+
+def determineLeastSold(quantities_sold: dict, sales_infos: dict) -> dict:
+    """
+    determines the 3 least sold items and the dates they were sold.
+    :param quantities_sold:
+    :return: dict
+    """
+    least_sold = {}
+
+    # sorting list based on the quanitites sold.
+    quantities_sold = sorted(quantities_sold.items(), key= lambda x: x[1])
+    quantities_sold = quantities_sold[:3] # taking the least three sold.
+    print(quantities_sold)
+
+    for i in range(len(quantities_sold)):
+        least_sold_id = quantities_sold[i][0]
+        quantity_sold = quantities_sold[i][1]
+        if quantity_sold == 0:
+            least_sold[least_sold_id] = {"quantity": 0, "dates": []}
+        else:
+            dates = []
+            for trans_id in sales_infos:
+                date = sales_infos[trans_id]["date"]
+                product_id = sales_infos[trans_id]["product id"]
+
+                # converting separators to "/"
+                date = date.split("-")
+
+                date = "/".join(date)
+
+                if least_sold_id == product_id and date not in dates:
+                    dates.append(date)
+
+            least_sold[least_sold_id] = {"quantity": quantity_sold, "dates": dates}
+
+    return least_sold
+
+def showLeastSold(least_sold: dict, product_infos: dict) -> None:
+    """
+    Displays the least sold items
+    :param least_sold:
+    :param product_infos:
+    :return:
+    """
+    print("\nLeast sold products: ")
+    print(f"{'PID':>3} {'Product Name':<20} QTY {'Dates Sold':>3}")
+    for prod_id in least_sold:
+        product_name = product_infos[prod_id]["name"]
+        dates = least_sold[prod_id]["dates"]
+        # if there  is no info, dont print anything.
+        if len(dates) == 0:
+            dates = ""
+        qty = least_sold[prod_id]["quantity"]
+        if qty == 0:
+            qty = ""
+        print(f"{prod_id:>3} {product_name:<20} {qty:3} {dates}")
+
+
 def main():
     """
     main program loop
@@ -613,18 +672,21 @@ def main():
     net_revenues_weekday = getNetRevenuesWeekday(product_infos, filtered_sales_infos)
     weekday_avgs = determineWeekdayAvgs(num_sales_weekday,weekday_counts,net_revenues_weekday)
     showWeekdayAvgs(weekday_avgs)
-    plotWeekdayAvgs(weekday_avgs)
+    #plotWeekdayAvgs(weekday_avgs)
 
     # Q3
     returned_transactions = getReturnedTransactions(unfiltered_sales_infos, returnals)
-    highest_return_cost, date_most_returns = determineMostReturned(returned_transactions,product_infos,2024,1)
+    highest_return_cost, date_most_returns = determineMostReturned(returned_transactions,product_infos, 2024 , 1)
     most_returned_items = determineMostReturnedItems(returned_transactions,date_most_returns,product_infos)
     showMostReturned(most_returned_items,date_most_returns,highest_return_cost,product_infos)
 
     # Q4
     quantities_sold = getQtyItemsSold(filtered_sales_infos)
-    print(quantities_sold)
     writeToFile("order_supplier_January.txt", quantities_sold, product_infos)
+
+    # Q5
+    least_sold = determineLeastSold(quantities_sold, filtered_sales_infos)
+    showLeastSold(least_sold, product_infos)
 
 
 if __name__ == "__main__":
