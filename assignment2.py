@@ -451,7 +451,7 @@ def determineMostReturned(returns: dict, product_infos: dict, year, month):
     :return: none
     """
     # year, month, day
-    date = [0,0,0]
+    date_of_returns = [0,0,0]
     highest_return_cost = 0
     # Get the first day of the month
     first_day = datetime.datetime(year, month, 1)
@@ -461,7 +461,6 @@ def determineMostReturned(returns: dict, product_infos: dict, year, month):
     current_day = first_day
     while current_day <= last_day:
         return_cost = 0
-        date_of_returns = []
 
         for trans_id in returns:
 
@@ -472,22 +471,112 @@ def determineMostReturned(returns: dict, product_infos: dict, year, month):
 
             day_returned = int(date_returned[2])
 
-            date_of_returns = date_returned
 
             if day_returned == current_day.day:
                 return_cost += 0.1 * product_price
 
-        # overwrite with the new cost and date
+        # overwrite with the new cost and date i
         if return_cost > highest_return_cost:
             highest_return_cost = return_cost
-            date = date_of_returns
+            date_of_returns =[current_day.year, current_day.month, current_day.day]
         # Move to the next day
         current_day += datetime.timedelta(days=1)
 
-    return highest_return_cost, date
+    return highest_return_cost, date_of_returns
+
+
+def determineMostReturnedItems(returns: dict, date_of_returns: list, product_infos: dict):
+    """
+    finds the products on the most returned day
+    :param returns:
+    :param date_of_returns:
+    :return:
+    """
+    # dict that keeps track of the qty of the product that was returned on the day with the highest return cost.
+    most_returned = {}
+
+    for trans_id in returns:
+        product_id = returns[trans_id]["product id"]
+        date_returned = returns[trans_id]["date"]
+        date_returned = date_returned.split("-")
+        for i in range(len(date_returned)):
+            date_returned[i] = int(date_returned[i])
+
+        if date_returned == date_of_returns:
+            if product_id not in most_returned:
+                most_returned[product_id] = returns[trans_id]["quantity"]
+
+            else:
+                most_returned[product_id] += returns[trans_id]["quantity"]
+
+    return most_returned
+
+def showMostReturned(most_returned_items: dict, date_most_returns: list, highest_return_cost: float, product_infos):
+    """
+    displays the return costs of the items
+    :param most_returned_items:
+    :param date_most_returns:
+    :param highest_return_cost:
+    :param product_infos:
+    :return:
+    """
+    date_object = datetime.datetime(year=date_most_returns[0], month=date_most_returns[1], day=date_most_returns[2])
+    # converting to the desired format
+    formatted_date = date_object.strftime("%A, %B %d, %Y")
+    print(f"\n{formatted_date} Total Return Shelving(RS) Cost=${highest_return_cost:10,.2f}")
+
+    print("\nProducts returned that day: ")
+    print(f"PID {'Product Name':>20} NoI {'RS Cost':>10}")
+    for prod_id in most_returned_items:
+        product_name = product_infos[prod_id]["name"]
+        product_price = product_infos[prod_id]["price"]
+        qty_returned = most_returned_items[prod_id]
+
+        return_cost = (product_price * qty_returned) * 0.1
+        print(f"{prod_id:3} {product_name:20} {qty_returned:3} ${return_cost:10,.2f}")
 
 
 
+
+def getQtyItemsSold(sales_infos: dict) -> dict:
+    """
+    determines how much of each item was sold.
+    :param sales_infos:
+    :return: dict
+    """
+    quantities_sold = {}
+
+    for trans_id in sales_infos:
+        prod_id = sales_infos[trans_id]["product id"]
+        quantity_bought = sales_infos[trans_id]["quantity"]
+
+        if prod_id not in quantities_sold:
+            quantities_sold[prod_id] = quantity_bought
+
+        else:
+            quantities_sold[prod_id] += quantity_bought
+
+    # sorting the dictionary
+    quantities_sold = dict(sorted(quantities_sold.items(), key=lambda item: int(item[0][1:])))
+    return quantities_sold
+
+
+
+def writeToFile(filename: str, quantities_sold: dict, product_infos: dict):
+    """
+    creates the order
+    :param filename:
+    :param quantities_sold:
+    :param product_infos:
+    :return:
+    """
+    with open(filename, "w") as file:
+        file.write(f"{'PID':3}#{'Product Name':<20}#{'QTY':3}\n")
+        for prod_id in quantities_sold:
+            product_name = product_infos[prod_id]["name"]
+            qty = str(quantities_sold[prod_id])
+            line = f"{prod_id:>3}#{product_name:<20}#{qty:>3}"
+            file.write(f"{line}\n")
 def main():
     """
     main program loop
@@ -517,21 +606,26 @@ def main():
     product_disc_averages_after = getDiscountAverages(transactions_after)
     showAverages(avg_trans_disc_before, avg_trans_disc_after, product_disc_averages_before, product_disc_averages_after, product_infos)
 
-    #Q2
+    # Q2
     num_sales_weekday = getNumSalesWeekdays(filtered_sales_infos)
     # 2024, January
     weekday_counts = count_weekdays(2024, 1)
     net_revenues_weekday = getNetRevenuesWeekday(product_infos, filtered_sales_infos)
     weekday_avgs = determineWeekdayAvgs(num_sales_weekday,weekday_counts,net_revenues_weekday)
     showWeekdayAvgs(weekday_avgs)
-    #plotWeekdayAvgs(weekday_avgs)
+    plotWeekdayAvgs(weekday_avgs)
 
-    #Q3
+    # Q3
     returned_transactions = getReturnedTransactions(unfiltered_sales_infos, returnals)
     highest_return_cost, date_most_returns = determineMostReturned(returned_transactions,product_infos,2024,1)
+    most_returned_items = determineMostReturnedItems(returned_transactions,date_most_returns,product_infos)
+    showMostReturned(most_returned_items,date_most_returns,highest_return_cost,product_infos)
 
-    print(returned_transactions)
-    print(highest_return_cost)
-    print(date_most_returns)
+    # Q4
+    quantities_sold = getQtyItemsSold(filtered_sales_infos)
+    print(quantities_sold)
+    writeToFile("order_supplier_January.txt", quantities_sold, product_infos)
+
+
 if __name__ == "__main__":
     main()
