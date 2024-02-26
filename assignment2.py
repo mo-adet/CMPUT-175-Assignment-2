@@ -6,6 +6,7 @@ Author: Muhammad Adetunji
 # importing necessary libraries
 import datetime
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def openFile(filename: str) -> list[list]:
@@ -26,7 +27,14 @@ def openFile(filename: str) -> list[list]:
 
     return data
 
-
+def sortbyID(dictionary) -> dict:
+    """
+    sorts the dictonary by product ID
+    :param dictionary:
+    :return:
+    """
+    dictionary = dict(sorted(dictionary.items(), key=lambda item: int(item[0][1:])))
+    return dictionary
 def getProdcutInfo(products: list) -> dict:
     """
     gets the name and price of each product
@@ -43,7 +51,10 @@ def getProdcutInfo(products: list) -> dict:
         #  using the product ID as a key to another dict containing the name and price of the item
         product_infos[product_id] = {"name": product_name, "price": product_price }
 
+    # sorting based on PID
+    product_infos = sortbyID(product_infos)
     return product_infos
+
 
 def getFilteredSalesInfo(sales: list, returnals: list )->dict:
     """
@@ -114,7 +125,7 @@ def getReturnedTransactions(sales: dict, returnals: list )->dict:
             returned_transactions[returnal_id] = sales[returnal_id]
             returned_transactions[returnal_id]["date"] = return_date
 
-
+    returned_transactions = sortbyID(returned_transactions)
     return returned_transactions
 
 
@@ -144,6 +155,7 @@ def getTransactionsWithDate(filtered_sales_infos: dict, day_cutoff: int):
         # otherwise add to the "after" dict.
         else:
             transactions_after[trans_id] = filtered_sales_infos[trans_id]
+
 
     return transactions_before, transactions_after
 
@@ -193,6 +205,7 @@ def getDiscountAverages(transactions: dict) -> dict:
             discount_average = sum(discounts)/len(discounts)
             discount_averages[product_id] = discount_average * 100 # multiplying by 100 so it is in percent form.
 
+    discount_averages = sortbyID(discount_averages)
     return discount_averages
 
 
@@ -223,41 +236,6 @@ def showAverages(avg_trans_disc_before: float, avg_trans_disc_after: float, disc
 
         print(f"{prod_id:>3} {product_name:>20} {disc_avg_before:>05.2f}% - {disc_avg_after:>05.2f}% ")
 
-
-
-def getNumSalesWeekdays(sales_infos:dict) -> dict:
-    """
-    determines the amount of weekdays in the month
-    :param sales_infos: dict (unfiltered)
-    :return: dict
-    """
-    # dictionary that will hold the amount of sales per weekday.
-    num_sales_weekdays = {
-        "Monday": 0,
-        "Tuesday": 0,
-        "Wednesday":0,
-        "Thursday": 0,
-        "Friday": 0,
-        "Saturday": 0,
-        "Sunday": 0,
-    }
-
-    for trans_id, sale_info in sales_infos.items():
-        date = sale_info["date"]
-        # splitting the date in to the day, month and year.
-        date = date.split("-")
-        year = int(date[0])
-        month = int(date[1])
-        day = int(date[2])
-
-        date = datetime.datetime(year,month,day)
-
-        # getting the name of the weekday.
-        weekday = date.strftime("%A")
-
-        num_sales_weekdays[weekday] += 1
-
-    return num_sales_weekdays
 
 
 def getNumSalesWeekdays(sales_infos:dict) -> dict:
@@ -590,7 +568,7 @@ def determineLeastSold(quantities_sold: dict, sales_infos: dict) -> dict:
     # sorting list based on the quanitites sold.
     quantities_sold = sorted(quantities_sold.items(), key= lambda x: x[1])
     quantities_sold = quantities_sold[:3] # taking the least three sold.
-    print(quantities_sold)
+
 
     for i in range(len(quantities_sold)):
         least_sold_id = quantities_sold[i][0]
@@ -627,7 +605,7 @@ def showLeastSold(least_sold: dict, product_infos: dict) -> None:
     for prod_id in least_sold:
         product_name = product_infos[prod_id]["name"]
         dates = least_sold[prod_id]["dates"]
-        # if there  is no info, dont print anything.
+        # if there  is no info, don't print anything.
         if len(dates) == 0:
             dates = ""
         qty = least_sold[prod_id]["quantity"]
@@ -635,7 +613,33 @@ def showLeastSold(least_sold: dict, product_infos: dict) -> None:
             qty = ""
         print(f"{prod_id:>3} {product_name:<20} {qty:3} {dates}")
 
+def plotCorrelation(product_infos: dict, discount_averages: dict) -> None:
+    """
+    plots the dot graph
+    :param product_infos:
+    :return:
+    """
+    # x are the prices of products and y is the average discount obtained for that product.
+    prices = []
+    avg_discounts =[]
 
+    for prod_id in product_infos:
+        price = product_infos[prod_id]["price"]
+        avg_discount = discount_averages[prod_id]
+
+        prices.append(price)
+        avg_discounts.append(avg_discount)
+
+    # determining r coefficent
+    r = np.corrcoef(prices, avg_discounts)
+    print(f"Pearson Correlation= {r[0, 1]:.3f}")
+    coef = np.polyfit(prices, avg_discounts, 1)
+    poly1d_fn = np.poly1d(coef)
+    plt.plot(prices, avg_discounts, 'bo', prices, poly1d_fn(prices), '--k')
+    plt.title(f"Pearson Correlation= {r[0, 1]:.3f}")
+    plt.xlabel("Price ($)")
+    plt.ylabel("Average Discount (%)")
+    plt.show()
 def main():
     """
     main program loop
@@ -672,7 +676,7 @@ def main():
     net_revenues_weekday = getNetRevenuesWeekday(product_infos, filtered_sales_infos)
     weekday_avgs = determineWeekdayAvgs(num_sales_weekday,weekday_counts,net_revenues_weekday)
     showWeekdayAvgs(weekday_avgs)
-    #plotWeekdayAvgs(weekday_avgs)
+    plotWeekdayAvgs(weekday_avgs)
 
     # Q3
     returned_transactions = getReturnedTransactions(unfiltered_sales_infos, returnals)
@@ -687,6 +691,11 @@ def main():
     # Q5
     least_sold = determineLeastSold(quantities_sold, filtered_sales_infos)
     showLeastSold(least_sold, product_infos)
+
+    # Q6
+    all_disc_averages = getDiscountAverages(filtered_sales_infos)
+    plotCorrelation(product_infos,all_disc_averages)
+
 
 
 if __name__ == "__main__":
